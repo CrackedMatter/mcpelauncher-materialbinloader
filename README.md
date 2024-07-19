@@ -1,2 +1,3 @@
 # mcpelauncher-materialbinloader
-MaterialBinLoader for mcpelauncher (x86_64)
+
+A port of [MaterialBinLoader](https://github.com/ddf8196/MaterialBinLoader) for mcpelauncher.
