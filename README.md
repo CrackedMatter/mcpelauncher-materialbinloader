@@ -4,7 +4,7 @@ A port of [MaterialBinLoader](https://github.com/ddf8196/MaterialBinLoader) for 
 
 ## Usage
 
-Create a `mods` directory in the direcotry of your mcpelauncher profile (e.g. `~/.local/share/mcpelauncher`) if you have not already done so.
+Create a `mods` directory in the directory of your mcpelauncher profile (e.g. `~/.local/share/mcpelauncher`) if you have not already done so.
 Download the mod from [releases](https://github.com/CrackedMatter/mcpelauncher-materialbinloader/releases) and move the file into the `mods` directory.
 
 
