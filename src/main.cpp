@@ -1,8 +1,9 @@
 #include <dlfcn.h>
+#include <libhat/Scanner.hpp>
+#include <link.h>
 #include <safetyhook.hpp>
 #include <string>
 #include <utility>
-#include "sig.hpp"
 
 struct ResourceLocation {
     int32_t     mFileSystem = 0;
@@ -47,11 +48,33 @@ std::string AppPlatform_readAssetFile(void* self, std::string& filename) {
 extern "C" __attribute__ ((visibility ("default"))) void mod_preinit() {}
 
 extern "C" __attribute__ ((visibility ("default"))) void mod_init() {
-    auto r = getCodeRegion(dlopen("libminecraftpe.so", 0));
+    using namespace hat::literals::signature_literals;
 
-    auto ResourcePackManager_ctor_addr = findSig(r, "55 41 57 41 56 53 48 83 EC ? 41 89 CF 49 89 D6 48 89 FB 64 48 8B 04 25 28 00 00 00 48 89 44 24 ? 48 8B 7E");
-    ResourcePackManager_ctor_hook = safetyhook::create_inline(ResourcePackManager_ctor_addr, reinterpret_cast<void*>(ResourcePackManager_ctor));
+    static std::span<std::byte> r;
 
-    auto AppPlatform_readAssetFile_addr = findSig(r, "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24");
-    AppPlatform_readAssetFile_hook = safetyhook::create_inline(AppPlatform_readAssetFile_addr, reinterpret_cast<void*>(AppPlatform_readAssetFile));
+    dl_iterate_phdr([](dl_phdr_info* info, size_t, void* mc) {
+        auto h = dlopen(info->dlpi_name, RTLD_NOLOAD);
+        dlclose(h);
+        if (h == mc) {
+            for (auto& phdr: std::span{info->dlpi_phdr, info->dlpi_phnum}) {
+                if (phdr.p_type == PT_LOAD && phdr.p_flags & PF_X) {
+                    r = {reinterpret_cast<std::byte*>(info->dlpi_addr + phdr.p_vaddr), phdr.p_memsz};
+                    return 1;
+                }
+            }
+        }
+        return 0;
+    }, dlopen("libminecraftpe.so", 0));
+
+    {
+        constexpr auto sig  = "55 41 57 41 56 53 48 83 EC ? 41 89 CF 49 89 D6 48 89 FB 64 48 8B 04 25 28 00 00 00 48 89 44 24 ? 48 8B 7E"_sig;
+        auto           addr = hat::find_pattern<hat::scan_alignment::X16>(r.begin(), r.end(), sig).get();
+        ResourcePackManager_ctor_hook = safetyhook::create_inline(addr, reinterpret_cast<void*>(ResourcePackManager_ctor));
+    }
+
+    {
+        constexpr auto sig  = "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24"_sig;
+        auto           addr = hat::find_pattern<hat::scan_alignment::X16>(r.begin(), r.end(), sig).get();
+        AppPlatform_readAssetFile_hook = safetyhook::create_inline(addr, reinterpret_cast<void*>(AppPlatform_readAssetFile));
+    }
 }
