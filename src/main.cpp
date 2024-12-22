@@ -45,9 +45,9 @@ std::string AppPlatform_readAssetFile(void* self, std::string& filename) {
     return AppPlatform_readAssetFile_hook.call<std::string>(self, filename);
 }
 
-extern "C" __attribute__((visibility("default"))) void mod_preinit() {}
+extern "C" [[gnu::visibility("default")]] void mod_preinit() {}
 
-extern "C" __attribute__((visibility("default"))) void mod_init() {
+extern "C" [[gnu::visibility("default")]] void mod_init() {
     using namespace hat::literals::signature_literals;
 
     static std::span<std::byte> r;
