@@ -68,15 +68,15 @@ extern "C" __attribute__((visibility("default"))) void mod_init() {
         },
         dlopen("libminecraftpe.so", 0));
 
-    auto ResourcePackManager_ctor_addr = hat::find_pattern<hat::scan_alignment::X16>(
-        r.begin(), r.end(),
-        "55 41 57 41 56 53 48 83 EC ? 41 89 CF 49 89 D6 48 89 FB 64 48 8B 04 25 28 00 00 00 48 89 44 24 ? 48 8B 7E"_sig);
+    auto ResourcePackManager_ctor_addr = hat::find_pattern(
+        r, "55 41 57 41 56 53 48 83 EC ? 41 89 CF 49 89 D6 48 89 FB 64 48 8B 04 25 28 00 00 00 48 89 44 24 ? 48 8B 7E"_sig,
+        hat::scan_alignment::X16);
 
-    ResourcePackManager_ctor_hook = safetyhook::create_inline(ResourcePackManager_ctor_addr.get(), reinterpret_cast<void*>(ResourcePackManager_ctor));
+    ResourcePackManager_ctor_hook = safetyhook::create_inline(ResourcePackManager_ctor_addr.get(), ResourcePackManager_ctor);
 
-    auto AppPlatform_readAssetFile_addr = hat::find_pattern<hat::scan_alignment::X16>(
-        r.begin(), r.end(),
-        "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24"_sig);
+    auto AppPlatform_readAssetFile_addr = hat::find_pattern(
+        r, "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24"_sig,
+        hat::scan_alignment::X16);
 
-    AppPlatform_readAssetFile_hook = safetyhook::create_inline(AppPlatform_readAssetFile_addr.get(), reinterpret_cast<void*>(AppPlatform_readAssetFile));
+    AppPlatform_readAssetFile_hook = safetyhook::create_inline(AppPlatform_readAssetFile_addr.get(), AppPlatform_readAssetFile);
 }

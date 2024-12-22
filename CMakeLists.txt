@@ -8,12 +8,12 @@ include(FetchContent)
 
 FetchContent_Declare(libhat
         GIT_REPOSITORY https://github.com/BasedInc/libhat.git
-        GIT_TAG a3bd74d363a20b58c8e397b078e86621bca0a151
+        GIT_TAG 5cf79adf86152233371b43adab5a0f9db6daa4e7
         EXCLUDE_FROM_ALL)
 
 FetchContent_Declare(safetyhook
         GIT_REPOSITORY https://github.com/cursey/safetyhook.git
-        GIT_TAG b046e123dc69821f2c375161e0adef3c6d9c9db4
+        GIT_TAG de83823750b604c83b93bc80683b02978d3ae589
         EXCLUDE_FROM_ALL)
 
 set(SAFETYHOOK_FETCH_ZYDIS ON)
