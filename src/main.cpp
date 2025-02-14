@@ -50,33 +50,34 @@ extern "C" [[gnu::visibility("default")]] void mod_preinit() {}
 extern "C" [[gnu::visibility("default")]] void mod_init() {
     using namespace hat::literals::signature_literals;
 
-    static std::span<std::byte> r;
+    auto mc = dlopen("libminecraftpe.so", 0);
 
-    dl_iterate_phdr(
-        [](dl_phdr_info* info, size_t, void* mc) {
-            auto h = dlopen(info->dlpi_name, RTLD_NOLOAD);
-            dlclose(h);
-            if (h == mc) {
-                for (auto& phdr : std::span{info->dlpi_phdr, info->dlpi_phnum}) {
-                    if (phdr.p_type == PT_LOAD && phdr.p_flags & PF_X) {
-                        r = {reinterpret_cast<std::byte*>(info->dlpi_addr + phdr.p_vaddr), phdr.p_memsz};
-                        return 1;
-                    }
-                }
-            }
+    std::span<std::byte> r;
+
+    auto l = [&](dl_phdr_info* info) {
+        if (auto h = dlopen(info->dlpi_name, RTLD_NOLOAD); dlclose(h), h != mc)
             return 0;
-        },
-        dlopen("libminecraftpe.so", 0));
+        r = {reinterpret_cast<std::byte*>(info->dlpi_addr + info->dlpi_phdr[1].p_vaddr), info->dlpi_phdr[1].p_memsz};
+        return 1;
+    };
 
-    auto ResourcePackManager_ctor_addr = hat::find_pattern(
-        r, "55 41 57 41 56 53 48 83 EC ? 41 89 CF 49 89 D6 48 89 FB 64 48 8B 04 25 28 00 00 00 48 89 44 24 ? 48 8B 7E"_sig,
-        hat::scan_alignment::X16);
+    dl_iterate_phdr([](dl_phdr_info* info, size_t, void* data) { return (*static_cast<decltype(l)*>(data))(info); }, &l);
 
-    ResourcePackManager_ctor_hook = safetyhook::create_inline(ResourcePackManager_ctor_addr.get(), ResourcePackManager_ctor);
+    auto scan = [r](const auto&... sig) {
+        void* addr;
+        ((addr = hat::find_pattern(r, sig, hat::scan_alignment::X16).get()) || ...);
+        return addr;
+    };
 
-    auto AppPlatform_readAssetFile_addr = hat::find_pattern(
-        r, "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24"_sig,
-        hat::scan_alignment::X16);
+    auto ResourcePackManager_ctor_addr = scan(
+        "55 41 57 41 56 41 55 41 54 53 48 83 EC ? 41 89 CF 49 89 D6 48 89 FB 64 48 8B 04 25 28 00 00 00 48 89 44 24 ? 48 8B 7E"_sig,
+        "55 41 57 41 56 53 48 83 EC ? 41 89 CF 49 89 D6 48 89 FB 64 48 8B 04 25 28 00 00 00 48 89 44 24 ? 48 8B 7E"_sig);
 
-    AppPlatform_readAssetFile_hook = safetyhook::create_inline(AppPlatform_readAssetFile_addr.get(), AppPlatform_readAssetFile);
+    ResourcePackManager_ctor_hook = safetyhook::create_inline(ResourcePackManager_ctor_addr, ResourcePackManager_ctor);
+
+    auto AppPlatform_readAssetFile_addr = scan(
+        "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 0F B6 02"_sig,
+        "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24"_sig);
+
+    AppPlatform_readAssetFile_hook = safetyhook::create_inline(AppPlatform_readAssetFile_addr, AppPlatform_readAssetFile);
 }
