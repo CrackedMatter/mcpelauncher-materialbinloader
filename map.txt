@@ -1,0 +1,7 @@
+LIBMATERIALBINLOADER {
+  global:
+    mod_init;
+    mod_preinit;
+  local:
+    *;
+};

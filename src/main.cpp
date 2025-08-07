@@ -1,6 +1,7 @@
 #include <dlfcn.h>
-#include <libhat/Scanner.hpp>
+#include <libhat/scanner.hpp>
 #include <link.h>
+#include <optional>
 #include <safetyhook.hpp>
 #include <string>
 #include <utility>
@@ -11,16 +12,16 @@ struct ResourceLocation {
     uint64_t    mPathHash = 0;
     uint64_t    mFullHash = 0;
 
-    explicit ResourceLocation(const std::string& path) { mPath = path; }
+    explicit ResourceLocation(std::string path) : mPath{std::move(path)} {}
 };
 
 struct ResourcePackManager {
-    virtual ~ResourcePackManager() { std::unreachable(); }
+    virtual ~ResourcePackManager();
 
-    virtual bool load(const ResourceLocation& resourceLocation, std::string& resourceStream) { std::unreachable(); }
+    virtual bool load(const ResourceLocation& resourceLocation, std::string& resourceStream);
 };
 
-ResourcePackManager* resourcePackManager;
+ResourcePackManager* resourcePackManager{};
 
 SafetyHookInline ResourcePackManager_ctor_hook;
 
@@ -31,18 +32,26 @@ void ResourcePackManager_ctor(ResourcePackManager* self, uint64_t a, uint64_t b,
     ResourcePackManager_ctor_hook.call(self, a, b, needsToInitialize);
 }
 
-SafetyHookInline AppPlatform_readAssetFile_hook;
-
-std::string AppPlatform_readAssetFile(void* self, std::string& filename) {
-    if (filename.starts_with("renderer/materials/") || filename.starts_with("assets/renderer/materials/") && filename.ends_with(".material.bin") && resourcePackManager) {
-        ResourceLocation resourceLocation(filename.starts_with("assets/") ? filename.substr(7) : filename);
+std::optional<std::string> loadMaterial(const std::string& filename) {
+    if ((filename.starts_with("renderer/materials/") || filename.starts_with("assets/renderer/materials/")) && filename.ends_with(".material.bin") && resourcePackManager) {
+        ResourceLocation resourceLocation{filename.starts_with("assets/") ? filename.substr(7) : filename};
         std::string      resourceStream;
 
         if (resourcePackManager->load(resourceLocation, resourceStream) && !resourceStream.empty())
             return resourceStream;
     }
 
-    return AppPlatform_readAssetFile_hook.call<std::string>(self, filename);
+    return std::nullopt;
+}
+
+SafetyHookInline readAssetFile_hook;
+
+std::string readAssetFile(const std::string& filename) {
+    return loadMaterial(filename).value_or(readAssetFile_hook.call<std::string, const std::string&>(filename));
+}
+
+std::string AppPlatform_readAssetFile(void* self, const std::string& filename) {
+    return loadMaterial(filename).value_or(readAssetFile_hook.call<std::string, void*, const std::string&>(self, filename));
 }
 
 extern "C" [[gnu::visibility("default")]] void mod_preinit() {}
@@ -75,9 +84,16 @@ extern "C" [[gnu::visibility("default")]] void mod_init() {
 
     ResourcePackManager_ctor_hook = safetyhook::create_inline(ResourcePackManager_ctor_addr, ResourcePackManager_ctor);
 
-    auto AppPlatform_readAssetFile_addr = scan(
-        "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 0F B6 02"_sig,
-        "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24"_sig);
+    auto readAssetFile_addr = scan(
+        "41 57 41 56 41 54 53 48 81 EC E8 00 00 00 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 0F B6 06"_sig);
 
-    AppPlatform_readAssetFile_hook = safetyhook::create_inline(AppPlatform_readAssetFile_addr, AppPlatform_readAssetFile);
+    if (readAssetFile_addr) {
+        readAssetFile_hook = safetyhook::create_inline(readAssetFile_addr, readAssetFile);
+    } else {
+        auto AppPlatform_readAssetFile_addr = scan(
+            "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 0F B6 02"_sig,
+            "41 57 41 56 41 54 53 48 81 EC ? ? ? ? 49 89 FE 64 48 8B 04 25 28 00 00 00 48 89 84 24 ? ? ? ? 0F 57 C0 0F 29 44 24 ? 48 8D BC 24"_sig);
+
+        readAssetFile_hook = safetyhook::create_inline(AppPlatform_readAssetFile_addr, AppPlatform_readAssetFile);
+    }
 }
